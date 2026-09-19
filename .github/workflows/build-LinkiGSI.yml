@@ -6,11 +6,11 @@ on:
       gsi_url_arm64:
         description: 'URL базы arm64 AB (телефоны)'
         required: false
-        default: 'https://dl.google.com/developers/android/vic/images/gsi/system-td-arm64-ab-vanilla.img.xz'
+        default: 'https://dl.google.com/developers/android/vic/images/gsi/aosp_arm64-exp-BP11.241210.004-12926906-ac28fd4c.zip'
       gsi_url_x64:
         description: 'URL базы x86_64 AB (виртуалка)'
         required: false
-        default: 'https://dl.google.com/developers/android/vic/images/gsi/system-td-x86_64-ab-vanilla.img.xz'
+        default: 'https://dl.google.com/developers/android/vic/images/gsi/aosp_x86_64-exp-BP11.241210.004-12926906-4944ba98.zip'
 
 jobs:
   build:
@@ -26,22 +26,28 @@ jobs:
 
       - name: Download Google GSI 15 base
         run: |
-          mkdir -p base out
-          cd base
+          mkdir -p base/arm64 base/x64 out
+          cd base/arm64
           echo "Качаем arm64 (телефоны)..."
-          wget -O system-arm64.img.xz "${{ inputs.gsi_url_arm64 }}" || echo "ARM64_URL_FAIL=1" >> $GITHUB_ENV
+          wget -O arm64.zip "${{ inputs.gsi_url_arm64 }}" || echo "ARM64_URL_FAIL=1" >> $GITHUB_ENV
+          unzip -o arm64.zip || true
+          ls -lh
+          find . -type f | head -n20
+          cd ../x64
           echo "Качаем x64 (виртуалка)..."
-          wget -O system-x64.img.xz "${{ inputs.gsi_url_x64 }}" || echo "X64_URL_FAIL=1" >> $GITHUB_ENV
+          wget -O x64.zip "${{ inputs.gsi_url_x64 }}" || echo "X64_URL_FAIL=1" >> $GITHUB_ENV
+          unzip -o x64.zip || true
           ls -lh
-          xz -d -f system-arm64.img.xz || true
-          xz -d -f system-x64.img.xz || true
-          ls -lh
+          find . -type f | head -n20
+          cd ../..
 
       - name: Rebrand arm64 to LinkiGSI
         if: env.ARM64_URL_FAIL != '1'
         run: |
           chmod +x scripts/rebrand.sh
-          IMG=$(ls base/*arm64*.img | head -n1)
+          IMG=$(find base/arm64 -type f -name "*.img" | grep -iv "vbmeta\|boot" | head -n1)
+          # если оба архива распаковались в одну папку - берем первый большой (>1G это system)
+          if [ -z "$IMG" ]; then ls -R base; exit 1; fi
           echo "База: $IMG"
           simg2img "$IMG" raw.img || cp "$IMG" raw.img
           mkdir -p mnt unpacked
@@ -58,7 +64,8 @@ jobs:
       - name: Rebrand x64 to LinkiGSI (виртуалка)
         if: env.X64_URL_FAIL != '1'
         run: |
-          IMG=$(ls base/*x64*.img base/*x86*.img 2>/dev/null | head -n1)
+          IMG=$(find base/x64 -type f -name "*.img" | grep -iv "vbmeta\|boot" | head -n1)
+          if [ -z "$IMG" ]; then ls -R base/x64; exit 1; fi
           echo "База: $IMG"
           simg2img "$IMG" raw64.img || cp "$IMG" raw64.img
           mkdir -p mnt64 unpacked64
