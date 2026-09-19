@@ -2,6 +2,15 @@ name: Build LinkiGSI 15
 
 on:
   workflow_dispatch:
+    inputs:
+      gsi_url_arm64:
+        description: 'URL базы arm64 AB (телефоны)'
+        required: false
+        default: 'https://dl.google.com/developers/android/vic/images/gsi/system-td-arm64-ab-vanilla.img.xz'
+      gsi_url_x64:
+        description: 'URL базы x86_64 AB (виртуалка)'
+        required: false
+        default: 'https://dl.google.com/developers/android/vic/images/gsi/system-td-x86_64-ab-vanilla.img.xz'
 
 jobs:
   build:
@@ -13,31 +22,57 @@ jobs:
       - name: Install deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y simg2img erofs-utils xz-utils unzip
+          sudo apt-get install -y simg2img erofs-utils xz-utils unzip e2fsprogs
 
       - name: Download Google GSI 15 base
         run: |
-          mkdir -p base
+          mkdir -p base out
           cd base
-          # Актуальные ссылки брать тут: https://developer.android.com/topic/generic-system-image/releases
-          # Пример (arm64 AB - для всех телефонов, x86_64 AB - для виртуалки):
-          # wget https://dl.google.com/developers/android/vic/images/gsi/system-td-arm64-ab-vanilla.img.xz
-          # wget https://dl.google.com/developers/android/vic/images/gsi/system-td-x86_64-ab-vanilla.img.xz
-          echo "Положи system-td-*.img.xz в папку base/ или поправь URL в этом файле"
-          ls -lh || true
+          echo "Качаем arm64 (телефоны)..."
+          wget -O system-arm64.img.xz "${{ inputs.gsi_url_arm64 }}" || echo "ARM64_URL_FAIL=1" >> $GITHUB_ENV
+          echo "Качаем x64 (виртуалка)..."
+          wget -O system-x64.img.xz "${{ inputs.gsi_url_x64 }}" || echo "X64_URL_FAIL=1" >> $GITHUB_ENV
+          ls -lh
+          xz -d -f system-arm64.img.xz || true
+          xz -d -f system-x64.img.xz || true
+          ls -lh
 
-      - name: Rebrand to LinkiGSI
+      - name: Rebrand arm64 to LinkiGSI
+        if: env.ARM64_URL_FAIL != '1'
         run: |
           chmod +x scripts/rebrand.sh
-          mkdir -p unpacked
-          # Распаковка + mount + ./scripts/rebrand.sh ./unpacked + перепаковка
-          # Для erofs: extract.erofs, для ext4: simg2img + mount
-          echo "rebrand заготовка - см. README-LinkiGSI.md"
+          IMG=$(ls base/*arm64*.img | head -n1)
+          echo "База: $IMG"
+          simg2img "$IMG" raw.img || cp "$IMG" raw.img
+          mkdir -p mnt unpacked
+          sudo mount -o ro raw.img mnt
+          sudo cp -a mnt/. unpacked/
+          sudo umount mnt
+          sudo chown -R $USER:$USER unpacked
+          ./scripts/rebrand.sh ./unpacked
+          # перепаковка в erofs (грузится как и оригинал)
+          sudo mkfs.erofs -z lz4 out/LinkiGSI-15-arm64-ab.img unpacked/
+          rm -rf unpacked mnt raw.img
+          ls -lh out/
+
+      - name: Rebrand x64 to LinkiGSI (виртуалка)
+        if: env.X64_URL_FAIL != '1'
+        run: |
+          IMG=$(ls base/*x64*.img base/*x86*.img 2>/dev/null | head -n1)
+          echo "База: $IMG"
+          simg2img "$IMG" raw64.img || cp "$IMG" raw64.img
+          mkdir -p mnt64 unpacked64
+          sudo mount -o ro raw64.img mnt64
+          sudo cp -a mnt64/. unpacked64/
+          sudo umount mnt64
+          sudo chown -R $USER:$USER unpacked64
+          ./scripts/rebrand.sh ./unpacked64
+          sudo mkfs.erofs -z lz4 out/LinkiGSI-15-x86_64-ab.img unpacked64/
+          rm -rf unpacked64 mnt64 raw64.img
+          ls -lh out/
 
       - name: Upload LinkiGSI
         uses: actions/upload-artifact@v4
         with:
           name: LinkiGSI-15
-          path: |
-            base/
-            scripts/LinkiGSI.prop
+          path: out/
