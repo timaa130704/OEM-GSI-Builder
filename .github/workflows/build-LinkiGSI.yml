@@ -1,0 +1,43 @@
+name: Build LinkiGSI 15
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y simg2img erofs-utils xz-utils unzip
+
+      - name: Download Google GSI 15 base
+        run: |
+          mkdir -p base
+          cd base
+          # Актуальные ссылки брать тут: https://developer.android.com/topic/generic-system-image/releases
+          # Пример (arm64 AB - для всех телефонов, x86_64 AB - для виртуалки):
+          # wget https://dl.google.com/developers/android/vic/images/gsi/system-td-arm64-ab-vanilla.img.xz
+          # wget https://dl.google.com/developers/android/vic/images/gsi/system-td-x86_64-ab-vanilla.img.xz
+          echo "Положи system-td-*.img.xz в папку base/ или поправь URL в этом файле"
+          ls -lh || true
+
+      - name: Rebrand to LinkiGSI
+        run: |
+          chmod +x scripts/rebrand.sh
+          mkdir -p unpacked
+          # Распаковка + mount + ./scripts/rebrand.sh ./unpacked + перепаковка
+          # Для erofs: extract.erofs, для ext4: simg2img + mount
+          echo "rebrand заготовка - см. README-LinkiGSI.md"
+
+      - name: Upload LinkiGSI
+        uses: actions/upload-artifact@v4
+        with:
+          name: LinkiGSI-15
+          path: |
+            base/
+            scripts/LinkiGSI.prop

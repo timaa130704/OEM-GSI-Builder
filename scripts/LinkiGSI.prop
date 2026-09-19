@@ -1,0 +1,15 @@
+# LinkiGSI branding - Android 15
+ro.product.system.brand=LinkiGSI
+ro.product.system.manufacturer=LinkiGSI
+ro.product.system.model=LinkiGSI A15 v1
+ro.product.system.device=linkigsi_arm64
+ro.product.system.name=linkigsi
+ro.product.product.brand=LinkiGSI
+ro.product.product.manufacturer=LinkiGSI
+ro.product.product.model=LinkiGSI A15 v1
+ro.product.product.device=linkigsi
+ro.build.display.id=LinkiGSI 1.0 Android 15
+ro.modversion=LinkiGSI-15-v1
+ro.custom.rom=LinkiGSI
+ro.linkigsi.version=1.0
+ro.linkigsi.base=android-15-gsi
